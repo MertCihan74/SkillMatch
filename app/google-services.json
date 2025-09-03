@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "591598885953",
+    "project_id": "skillmatch-a878d",
+    "storage_bucket": "skillmatch-a878d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:591598885953:android:2ee3fe05dc4a05990c3ac0",
+        "android_client_info": {
+          "package_name": "com.parthenios.skillmatch"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSCeWylDxzZ2r1HrVMYleOr1WFz0xh1UU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
