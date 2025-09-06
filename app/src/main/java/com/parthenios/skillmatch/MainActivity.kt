@@ -1,4 +1,4 @@
-package com.parthenios.skillmatch.ui.main
+package com.parthenios.skillmatch
 
 import android.content.Intent
 import android.os.Bundle
@@ -7,109 +7,155 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import com.parthenios.skillmatch.R
+import androidx.drawerlayout.widget.DrawerLayout
+import androidx.fragment.app.Fragment
+import com.google.android.material.navigation.NavigationView
 import com.parthenios.skillmatch.auth.AuthRepository
 import com.parthenios.skillmatch.databinding.ActivityMainBinding
 import com.parthenios.skillmatch.ui.auth.LoginActivity
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
-import kotlinx.coroutines.withContext
+import com.parthenios.skillmatch.ui.explore.ExploreFragment
+import com.parthenios.skillmatch.ui.matching.MatchingFragment
+import com.parthenios.skillmatch.ui.profile.ProfileFragment
+import com.parthenios.skillmatch.ui.chat.ChatListFragment
+import com.parthenios.skillmatch.utils.UserPreferences
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var authRepository: AuthRepository
+    private lateinit var userPreferences: UserPreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.drawer_layout)) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            // Sadece yan ve alt padding uygula, üst padding uygulama
+            v.setPadding(systemBars.left, 0, systemBars.right, systemBars.bottom)
+            insets
+        }
         
         authRepository = AuthRepository()
+        userPreferences = UserPreferences(this)
         
-        // Kullanıcı giriş yapmamışsa login sayfasına yönlendir
-        val currentUser = authRepository.getCurrentUser()
-        if (currentUser == null) {
+        // Kullanıcı giriş yapmış mı kontrol et
+        if (authRepository.getCurrentUser() == null || !userPreferences.isUserLoggedIn()) {
+            // Kullanıcı giriş yapmamış, LoginActivity'ye yönlendir
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
             return
         }
-
-        // Kullanıcı giriş yapmış, profil kontrolü yap
-        checkUserProfileCompleteness(currentUser.uid)
-    }
-
-    private fun checkUserProfileCompleteness(uid: String) {
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val result = authRepository.getUserFromFirestore(uid)
-                withContext(Dispatchers.Main) {
-                    if (result.isSuccess) {
-                        val user = result.getOrNull()
-                        if (user != null && user.firstName.isNotEmpty()) {
-                            // Profil tamamlanmış, UI'yi kur
-                            setupUI()
-                        } else {
-                            // Profil eksik, kullanıcıyı Firebase'den sil ve giriş ekranına yönlendir
-                            deleteIncompleteUser(uid)
-                        }
-                    } else {
-                        // Firestore'da kullanıcı yok, kullanıcıyı Firebase'den sil ve giriş ekranına yönlendir
-                        deleteIncompleteUser(uid)
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    // Hata durumunda kullanıcıyı Firebase'den sil ve giriş ekranına yönlendir
-                    deleteIncompleteUser(uid)
-                }
-            }
+        
+        setupToolbar()
+        setupDrawerNavigation()
+        setupBottomNavigation()
+        
+        // Varsayılan olarak Keşfet fragment'ini göster
+        if (savedInstanceState == null) {
+            showFragment(ExploreFragment())
         }
     }
 
-    private fun deleteIncompleteUser(uid: String) {
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                // Kullanıcıyı Firebase Authentication'dan sil
-                val currentUser = authRepository.getCurrentUser()
-                if (currentUser != null) {
-                    currentUser.delete().await()
+    private fun setupToolbar() {
+        setSupportActionBar(binding.toolbar)
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.setHomeAsUpIndicator(R.drawable.ic_menu)
+        
+        // Profil butonuna click listener ekle
+        binding.ivProfile.setOnClickListener {
+            showFragment(ProfileFragment())
+        }
+    }
+
+    private fun setupDrawerNavigation() {
+        binding.navigationDrawer.setNavigationItemSelectedListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.nav_explore -> {
+                    showFragment(ExploreFragment())
+                    binding.drawerLayout.closeDrawers()
+                    true
                 }
-                
-                withContext(Dispatchers.Main) {
-                    // Giriş ekranına yönlendir
-                    startActivity(Intent(this@MainActivity, LoginActivity::class.java))
-                    finish()
+                R.id.nav_matching -> {
+                    showFragment(MatchingFragment())
+                    binding.drawerLayout.closeDrawers()
+                    true
                 }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    // Silme başarısız olursa sadece çıkış yap
+                R.id.nav_profile -> {
+                    showFragment(ProfileFragment())
+                    binding.drawerLayout.closeDrawers()
+                    true
+                }
+                R.id.nav_settings -> {
+                    Toast.makeText(this, "Ayarlar yakında gelecek!", Toast.LENGTH_SHORT).show()
+                    binding.drawerLayout.closeDrawers()
+                    true
+                }
+                R.id.nav_help -> {
+                    Toast.makeText(this, "Yardım yakında gelecek!", Toast.LENGTH_SHORT).show()
+                    binding.drawerLayout.closeDrawers()
+                    true
+                }
+                R.id.nav_logout -> {
                     authRepository.signOut()
-                    startActivity(Intent(this@MainActivity, LoginActivity::class.java))
+                    userPreferences.clearUser()
+                    startActivity(Intent(this, LoginActivity::class.java))
                     finish()
+                    true
                 }
+                else -> false
             }
         }
     }
 
-    private fun setupUI() {
-        // UI'yi sadece profil tamamlandığında yükle
-        enableEdgeToEdge()
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
+    private fun setupBottomNavigation() {
+        binding.bottomNavigation.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_explore -> {
+                    showFragment(ExploreFragment())
+                    true
+                }
+                R.id.nav_matching -> {
+                    showFragment(MatchingFragment())
+                    true
+                }
+                R.id.nav_chat -> {
+                    // Chat listesi göster (aktif eşleşmeler)
+                    showChatList()
+                    true
+                }
+                else -> false
+            }
         }
-        
-        val currentUser = authRepository.getCurrentUser()
-        binding.tvWelcome.text = "Hoş geldin, ${currentUser?.email}!"
-        
-        binding.btnLogout.setOnClickListener {
-            authRepository.signOut()
-            startActivity(Intent(this, LoginActivity::class.java))
-            finish()
+    }
+
+    private fun showFragment(fragment: Fragment) {
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, fragment)
+            .commit()
+    }
+    
+    private fun showChatList() {
+        showFragment(ChatListFragment())
+    }
+
+    override fun onOptionsItemSelected(item: android.view.MenuItem): Boolean {
+        return when (item.itemId) {
+            android.R.id.home -> {
+                binding.drawerLayout.openDrawer(binding.navigationDrawer)
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    override fun onBackPressed() {
+        if (binding.drawerLayout.isDrawerOpen(binding.navigationDrawer)) {
+            binding.drawerLayout.closeDrawers()
+        } else {
+            super.onBackPressed()
         }
     }
 }

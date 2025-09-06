@@ -5,4 +5,8 @@
     <color name="primary_color">#FF6200EE</color>
     <color name="primary_dark">#FF3700B3</color>
     <color name="accent_color">#FF03DAC5</color>
+    <color name="teal_700">#FF00796B</color>
+    <color name="light_gray">#FFF5F5F5</color>
+    <color name="red_500">#FFF44336</color>
+    <color name="green_500">#FF4CAF50</color>
 </resources>

@@ -12,7 +12,20 @@
           "package_name": "com.parthenios.skillmatch"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "591598885953-bag9mkoc3hprtbgj86fchd66qp63d6dl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.parthenios.skillmatch",
+            "certificate_hash": "60401a81df034ad22dc6c842062a0b4f1b19e744"
+          }
+        },
+        {
+          "client_id": "591598885953-c5du3panp1raplvelccftab1cmgkijqa.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDSCeWylDxzZ2r1HrVMYleOr1WFz0xh1UU"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "591598885953-c5du3panp1raplvelccftab1cmgkijqa.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

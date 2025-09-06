@@ -11,7 +11,8 @@ import com.google.android.gms.common.api.ApiException
 import com.parthenios.skillmatch.R
 import com.parthenios.skillmatch.auth.AuthRepository
 import com.parthenios.skillmatch.databinding.ActivityLoginBinding
-import com.parthenios.skillmatch.ui.main.MainActivity
+import com.parthenios.skillmatch.MainActivity
+import com.parthenios.skillmatch.utils.UserPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -21,6 +22,7 @@ import kotlinx.coroutines.withContext
 class LoginActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLoginBinding
     private lateinit var authRepository: AuthRepository
+    private lateinit var userPreferences: UserPreferences
     private lateinit var googleSignInClient: GoogleSignInClient
 
     companion object {
@@ -33,6 +35,7 @@ class LoginActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         authRepository = AuthRepository()
+        userPreferences = UserPreferences(this)
 
         // Google Sign-In konfigürasyonu
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -80,12 +83,15 @@ class LoginActivity : AppCompatActivity() {
                     if (result.isSuccess) {
                         val user = result.getOrNull()
                         if (user != null && user.firstName.isNotEmpty()) {
-                            // Profil tamamlanmış, ana sayfaya git
+                            // Profil tamamlanmış, kullanıcı bilgilerini lokalde sakla
+                            userPreferences.saveUser(user)
                             startActivity(Intent(this@LoginActivity, MainActivity::class.java))
                             finish()
                         } else {
-                            // Profil eksik, kullanıcıyı Firebase'den sil ve giriş ekranında bırak
-                            deleteIncompleteUser(uid)
+                            // Profil eksik, kayıt sayfasına yönlendir
+                            Toast.makeText(this@LoginActivity, "Profil bilgilerinizi tamamlayın", Toast.LENGTH_SHORT).show()
+                            startActivity(Intent(this@LoginActivity, RegisterActivity::class.java))
+                            finish()
                         }
                     } else {
                         // Firestore'da kullanıcı yok, kullanıcıyı Firebase'den sil ve giriş ekranında bırak
@@ -140,8 +146,31 @@ class LoginActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 showLoading(false)
                 if (result.isSuccess) {
-                    startActivity(Intent(this@LoginActivity, MainActivity::class.java))
-                    finish()
+                    // Kullanıcı bilgilerini Firestore'dan al ve lokalde sakla
+                    val currentUser = authRepository.getCurrentUser()
+                    if (currentUser != null) {
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                val userResult = authRepository.getUserFromFirestore(currentUser.uid)
+                                withContext(Dispatchers.Main) {
+                                    if (userResult.isSuccess) {
+                                        val user = userResult.getOrNull()
+                                        user?.let { userPreferences.saveUser(it) }
+                                    }
+                                    startActivity(Intent(this@LoginActivity, MainActivity::class.java))
+                                    finish()
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    startActivity(Intent(this@LoginActivity, MainActivity::class.java))
+                                    finish()
+                                }
+                            }
+                        }
+                    } else {
+                        startActivity(Intent(this@LoginActivity, MainActivity::class.java))
+                        finish()
+                    }
                 } else {
                     Toast.makeText(
                         this@LoginActivity,
@@ -205,7 +234,8 @@ class LoginActivity : AppCompatActivity() {
                     if (result.isSuccess) {
                         val user = result.getOrNull()
                         if (user != null && user.firstName.isNotEmpty()) {
-                            // Kullanıcı tam kayıtlı, ana sayfaya git
+                            // Kullanıcı tam kayıtlı, kullanıcı bilgilerini lokalde sakla
+                            userPreferences.saveUser(user)
                             Toast.makeText(this@LoginActivity, "Giriş başarılı!", Toast.LENGTH_SHORT).show()
                             startActivity(Intent(this@LoginActivity, MainActivity::class.java))
                             finish()

@@ -13,7 +13,7 @@ import com.parthenios.skillmatch.R
 import com.parthenios.skillmatch.auth.AuthRepository
 import com.parthenios.skillmatch.data.User
 import com.parthenios.skillmatch.databinding.FragmentWantedSkillsBinding
-import com.parthenios.skillmatch.ui.main.MainActivity
+import com.parthenios.skillmatch.MainActivity
 import com.parthenios.skillmatch.utils.TextUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -111,6 +111,9 @@ class WantedSkillsFragment : Fragment() {
                 val currentUser = authRepository.getCurrentUser()
                 
                 if (currentUser != null) {
+                    // Yaş hesapla
+                    val calculatedAge = calculateAge(registerActivity.birthDate)
+                    
                     val user = User(
                         uid = currentUser.uid,
                         email = registerActivity.email,
@@ -118,10 +121,11 @@ class WantedSkillsFragment : Fragment() {
                         lastName = registerActivity.lastName,
                         username = registerActivity.username,
                         birthDate = registerActivity.birthDate,
-                        age = registerActivity.age,
+                        age = calculatedAge,
                         city = registerActivity.city,
                         knownSkills = registerActivity.knownSkills,
-                        wantedSkills = registerActivity.wantedSkills
+                        wantedSkills = registerActivity.wantedSkills,
+                        birthday = formatBirthday(registerActivity.birthDate)
                     )
 
                     val result = authRepository.saveUserToFirestore(user)
@@ -168,6 +172,41 @@ class WantedSkillsFragment : Fragment() {
                 }
             }
         }
+    }
+
+    private fun calculateAge(birthDate: java.util.Date?): Int {
+        if (birthDate == null) return 0
+        
+        val calendar = java.util.Calendar.getInstance()
+        val currentYear = calendar.get(java.util.Calendar.YEAR)
+        val currentMonth = calendar.get(java.util.Calendar.MONTH) + 1
+        val currentDay = calendar.get(java.util.Calendar.DAY_OF_MONTH)
+        
+        val birthCalendar = java.util.Calendar.getInstance()
+        birthCalendar.time = birthDate
+        val birthYear = birthCalendar.get(java.util.Calendar.YEAR)
+        val birthMonth = birthCalendar.get(java.util.Calendar.MONTH) + 1
+        val birthDay = birthCalendar.get(java.util.Calendar.DAY_OF_MONTH)
+        
+        var age = currentYear - birthYear
+        
+        if (currentMonth < birthMonth || (currentMonth == birthMonth && currentDay < birthDay)) {
+            age--
+        }
+        
+        return age
+    }
+    
+    private fun formatBirthday(birthDate: java.util.Date?): String {
+        if (birthDate == null) return ""
+        
+        val calendar = java.util.Calendar.getInstance()
+        calendar.time = birthDate
+        val year = calendar.get(java.util.Calendar.YEAR)
+        val month = calendar.get(java.util.Calendar.MONTH) + 1
+        val day = calendar.get(java.util.Calendar.DAY_OF_MONTH)
+        
+        return String.format("%04d-%02d-%02d", year, month, day)
     }
 
     override fun onDestroyView() {

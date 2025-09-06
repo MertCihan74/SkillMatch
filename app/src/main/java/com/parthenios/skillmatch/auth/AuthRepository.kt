@@ -65,3 +65,4 @@ class AuthRepository {
         auth.signOut()
     }
 }
+

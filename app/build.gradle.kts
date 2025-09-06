@@ -57,6 +57,9 @@ dependencies {
     // Google Sign-In
     implementation("com.google.android.gms:play-services-auth:20.7.0")
     
+    // Gson for JSON serialization
+    implementation("com.google.code.gson:gson:2.10.1")
+    
     // Navigation Component
     implementation("androidx.navigation:navigation-fragment-ktx:2.7.6")
     implementation("androidx.navigation:navigation-ui-ktx:2.7.6")
@@ -68,6 +71,16 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+    
+    // Swipe ve Touch için gerekli kütüphaneler
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("androidx.recyclerview:recyclerview-selection:1.1.0")
+    
+    // ViewPager2 for smooth swiping
+    implementation("androidx.viewpager2:viewpager2:1.0.0")
+    
+    // Gesture detection
+    implementation("androidx.core:core-ktx:1.12.0")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

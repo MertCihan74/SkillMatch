@@ -1,5 +1,6 @@
 package com.parthenios.skillmatch.data
 
+import java.io.Serializable
 import java.util.Date
 
 data class User(
@@ -13,5 +14,6 @@ data class User(
     val city: String = "",
     val knownSkills: List<String> = emptyList(),
     val wantedSkills: List<String> = emptyList(),
-    val createdAt: Long = System.currentTimeMillis()
-)
+    val createdAt: Long = System.currentTimeMillis(),
+    val birthday: String = "" // String format for easier handling
+) : Serializable

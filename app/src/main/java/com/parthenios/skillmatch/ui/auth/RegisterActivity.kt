@@ -5,7 +5,7 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.viewpager2.widget.ViewPager2
 import com.parthenios.skillmatch.databinding.ActivityRegisterBinding
-import com.parthenios.skillmatch.ui.main.MainActivity
+import com.parthenios.skillmatch.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -32,6 +32,15 @@ class RegisterActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityRegisterBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Kullanıcı giriş yapmış mı kontrol et
+        val authRepository = com.parthenios.skillmatch.auth.AuthRepository()
+        if (authRepository.getCurrentUser() == null) {
+            // Kullanıcı giriş yapmamış, LoginActivity'ye yönlendir
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+            return
+        }
 
         setupViewPager()
         checkGoogleUser()
