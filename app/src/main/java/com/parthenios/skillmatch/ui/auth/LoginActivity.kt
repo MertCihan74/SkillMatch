@@ -18,6 +18,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import com.google.firebase.messaging.FirebaseMessaging
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.withContext
 
 class LoginActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLoginBinding
@@ -85,6 +88,28 @@ class LoginActivity : AppCompatActivity() {
                         if (user != null && user.firstName.isNotEmpty()) {
                             // Profil tamamlanmış, kullanıcı bilgilerini lokalde sakla
                             userPreferences.saveUser(user)
+                            // FCM token'ını kaydet
+                            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                                if (task.isSuccessful) {
+                                    val token = task.result
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        try {
+                                            FirebaseFirestore.getInstance()
+                                                .collection("users")
+                                                .document(uid)
+                                                .update(mapOf("fcmToken" to token))
+                                                .await()
+                                        } catch (e: Exception) { }
+                                    }
+                                }
+                            }
+                            // Silinmiş kullanıcılarla ilişkili eski eşleşmeleri/mesajları temizle
+                            CoroutineScope(Dispatchers.IO).launch {
+                                try {
+                                    cleanupDanglingMatches(uid)
+                                } catch (_: Exception) {}
+                            }
+
                             startActivity(Intent(this@LoginActivity, MainActivity::class.java))
                             finish()
                         } else {
@@ -126,6 +151,50 @@ class LoginActivity : AppCompatActivity() {
                     authRepository.signOut()
                     Toast.makeText(this@LoginActivity, "Profil temizlendi, tekrar giriş yapabilirsiniz", Toast.LENGTH_SHORT).show()
                 }
+            }
+        }
+    }
+
+    private suspend fun cleanupDanglingMatches(currentUid: String) {
+        val db = FirebaseFirestore.getInstance()
+        // Kullanıcı profilinin oluşturulma zamanını al
+        val meDoc = db.collection("users").document(currentUid).get().await()
+        val myCreatedAt = meDoc.getLong("createdAt") ?: System.currentTimeMillis()
+        // Kullanıcının dahil olduğu tüm eşleşmeleri bul
+        val matches1 = db.collection("matches").whereEqualTo("user1Id", currentUid).get().await()
+        val matches2 = db.collection("matches").whereEqualTo("user2Id", currentUid).get().await()
+        val all = matches1.documents + matches2.documents
+        for (m in all) {
+            val user1Id = m.getString("user1Id")
+            val user2Id = m.getString("user2Id")
+            val otherId = if (user1Id == currentUid) user2Id else user1Id
+            if (otherId.isNullOrEmpty()) continue
+            val otherDoc = try { db.collection("users").document(otherId).get().await() } catch (e: Exception) { null }
+            val matchCreatedAt = m.getDate("createdAt")?.time ?: 0L
+            val shouldDeleteBecauseOtherMissing = (otherDoc == null || !otherDoc.exists())
+            val shouldDeleteBecauseStaleForMe = matchCreatedAt > 0 && myCreatedAt > matchCreatedAt
+            if (shouldDeleteBecauseOtherMissing || shouldDeleteBecauseStaleForMe) {
+                // Mesajları sil
+                val msgs = db.collection("messages").whereEqualTo("matchId", m.id).get().await()
+                for (d in msgs.documents) {
+                    try { db.collection("messages").document(d.id).delete().await() } catch (_: Exception) {}
+                }
+                // Eşleşmeyi sil
+                try { db.collection("matches").document(m.id).delete().await() } catch (_: Exception) {}
+            }
+        }
+        // Bu kullanıcının gönderdiği ya da aldığı ve karşı kullanıcı silinmiş olan istekleri temizle
+        val sent = db.collection("matchRequests").whereEqualTo("fromUserId", currentUid).get().await()
+        val received = db.collection("matchRequests").whereEqualTo("toUserId", currentUid).get().await()
+        val reqs = sent.documents + received.documents
+        for (r in reqs) {
+            val fromId = r.getString("fromUserId")
+            val toId = r.getString("toUserId")
+            val otherId = if (fromId == currentUid) toId else fromId
+            if (otherId.isNullOrEmpty()) continue
+            val otherDoc = try { db.collection("users").document(otherId).get().await() } catch (e: Exception) { null }
+            if (otherDoc == null || !otherDoc.exists()) {
+                try { db.collection("matchRequests").document(r.id).delete().await() } catch (_: Exception) {}
             }
         }
     }

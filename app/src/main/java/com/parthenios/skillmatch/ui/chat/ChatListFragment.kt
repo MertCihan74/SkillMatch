@@ -113,12 +113,36 @@ class ChatListFragment : Fragment() {
                 } ?: emptyList()
                 
                 val allMatches = matches1 + matches2
-                
-                activeMatches.clear()
-                activeMatches.addAll(allMatches)
-                chatListAdapter.submitList(allMatches)
-                
-                updateUI()
+
+                // Karşı kullanıcı silinmişse bu eşleşmeleri temizle ve listeden çıkar
+                CoroutineScope(Dispatchers.IO).launch {
+                    val firestore = FirebaseFirestore.getInstance()
+                    val currentId = currentUser!!.uid
+                    val validMatches = mutableListOf<Match>()
+                    for (m in allMatches) {
+                        val otherId = if (m.user1Id == currentId) m.user2Id else m.user1Id
+                        val otherDoc = try { firestore.collection("users").document(otherId).get().await() } catch (e: Exception) { null }
+                        if (otherDoc != null && otherDoc.exists()) {
+                            validMatches.add(m)
+                        } else {
+                            // Cleanup: bu eşleşmeye bağlı mesajları ve eşleşmeyi sil
+                            try {
+                                val msgs = firestore.collection("messages").whereEqualTo("matchId", m.id).get().await()
+                                for (d in msgs.documents) {
+                                    try { firestore.collection("messages").document(d.id).delete().await() } catch (_: Exception) {}
+                                }
+                                try { firestore.collection("matches").document(m.id).delete().await() } catch (_: Exception) {}
+                            } catch (_: Exception) {}
+                        }
+                    }
+
+                    withContext(Dispatchers.Main) {
+                        activeMatches.clear()
+                        activeMatches.addAll(validMatches)
+                        chatListAdapter.submitList(validMatches)
+                        updateUI()
+                    }
+                }
             }.addOnFailureListener { error2 ->
                 Toast.makeText(requireContext(), "Eşleşmeler yüklenirken hata: ${error2.message}", Toast.LENGTH_SHORT).show()
             }

@@ -35,7 +35,6 @@ class ChatActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Toast.makeText(this, "Chat açılırken hata: ${e.message}", Toast.LENGTH_LONG).show()
             e.printStackTrace()
-            finish()
         }
     }
     
@@ -54,7 +53,6 @@ class ChatActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Toast.makeText(this, "Chat fragment oluşturulurken hata: ${e.message}", Toast.LENGTH_LONG).show()
             e.printStackTrace()
-            finish()
         }
     }
     

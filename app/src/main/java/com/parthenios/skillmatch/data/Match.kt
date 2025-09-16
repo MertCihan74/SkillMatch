@@ -22,3 +22,4 @@ enum class MatchStatus {
     EXPIRED,    // 24 saat içinde mesaj atılmadı
     ENDED       // Kullanıcılardan biri eşleşmeyi bitirdi
 }
+

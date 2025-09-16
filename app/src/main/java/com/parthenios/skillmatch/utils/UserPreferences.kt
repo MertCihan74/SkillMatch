@@ -35,3 +35,4 @@ class UserPreferences(context: Context) {
         return getUser() != null
     }
 }
+

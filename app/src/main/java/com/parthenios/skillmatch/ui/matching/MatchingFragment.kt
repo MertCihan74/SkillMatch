@@ -21,7 +21,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.parthenios.skillmatch.utils.NotificationHelper
 import kotlinx.coroutines.tasks.await
+import java.util.Date
 
 class MatchingFragment : Fragment() {
     private var _binding: FragmentMatchingBinding? = null
@@ -94,7 +96,7 @@ class MatchingFragment : Fragment() {
                     .whereEqualTo("toUserId", currentUser!!.uid)
                     .whereEqualTo("status", MatchRequestStatus.PENDING.name)
                     .get().await()
-                
+
                 val receivedRequestsList = receivedQuery.documents.mapNotNull { document ->
                     try {
                         document.toObject(MatchRequest::class.java)?.copy(id = document.id)
@@ -102,15 +104,27 @@ class MatchingFragment : Fragment() {
                         null
                     }
                 }
-                
+                val filtered = receivedRequestsList // Süre filtresi kaldırıldı
+
                 withContext(Dispatchers.Main) {
                     receivedRequests.clear()
-                    receivedRequests.addAll(receivedRequestsList)
+                    receivedRequests.addAll(filtered)
                     receivedRequestsAdapter.submitList(receivedRequests)
-                    
+
                     // UI güncelleme
                     updateUI()
+
+                    // Basit bildirim: yeni istek varsa haber ver
+                    if (filtered.isNotEmpty()) {
+                        NotificationHelper.showMatchRequestNotification(
+                            requireContext(),
+                            title = "Yeni eşleşme isteği",
+                            body = "Bir kullanıcı sizden eşleşme istiyor"
+                        )
+                    }
                 }
+
+                // Süreye bağlı temizlik devre dışı bırakıldı
                 
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -144,12 +158,11 @@ class MatchingFragment : Fragment() {
                     .await()
                 
                 // Eşleşme oluştur
-                createMatch(request)
+                val createdMatchId = createMatch(request)
                 
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(requireContext(), "Eşleşme isteği kabul edildi! 🎉", Toast.LENGTH_SHORT).show()
-                    // Chat'e yönlendir
-                    redirectToChat(request)
+                    // Yönlendirme kaldırıldı: sadece bilgilendir
+                    Toast.makeText(requireContext(), "Tebrikler, eşleştiniz! Mesajlar bölümünden sohbeti başlatabilirsiniz.", Toast.LENGTH_LONG).show()
                 }
                 
             } catch (e: Exception) {
@@ -231,7 +244,7 @@ class MatchingFragment : Fragment() {
         }
     }
     
-    private suspend fun createMatch(request: MatchRequest) {
+    private suspend fun createMatch(request: MatchRequest): String {
         try {
             // Diğer kullanıcının bilgilerini al
             val otherUserDoc = firestore.collection("users")
@@ -240,7 +253,35 @@ class MatchingFragment : Fragment() {
             
             val otherUser = otherUserDoc.toObject(User::class.java)
             if (otherUser == null) {
-                throw Exception("Diğer kullanıcı bulunamadı")
+                // Gönderen kullanıcı silinmiş ise isteği düşür ve işlem yapma
+                try {
+                    firestore.collection("matchRequests").document(request.id)
+                        .update("status", MatchRequestStatus.REJECTED.name)
+                        .await()
+                } catch (_: Exception) {}
+                throw Exception("Diğer kullanıcı bulunamadı (silinmiş olabilir)")
+            }
+
+            // Mevcut aktif eşleşme var mı? Varsa yeniden oluşturma, mevcut ID'yi dön
+            val existing1 = firestore.collection("matches")
+                .whereEqualTo("user1Id", currentUser!!.uid)
+                .whereEqualTo("user2Id", request.fromUserId)
+                .whereEqualTo("status", MatchStatus.ACTIVE.name)
+                .get().await()
+            val existing2 = firestore.collection("matches")
+                .whereEqualTo("user1Id", request.fromUserId)
+                .whereEqualTo("user2Id", currentUser!!.uid)
+                .whereEqualTo("status", MatchStatus.ACTIVE.name)
+                .get().await()
+            val existingMatch = (existing1.documents + existing2.documents).firstOrNull()
+            if (existingMatch != null) {
+                // Request'i mevcut match ile ilişkilendir
+                try {
+                    firestore.collection("matchRequests").document(request.id)
+                        .update("matchId", existingMatch.id, "status", MatchRequestStatus.ACCEPTED.name)
+                        .await()
+                } catch (_: Exception) {}
+                return existingMatch.id
             }
             
             // Eşleşme oluştur
@@ -260,13 +301,13 @@ class MatchingFragment : Fragment() {
             firestore.collection("matchRequests").document(request.id)
                 .update("matchId", matchRef.id)
                 .await()
-                
+            return matchRef.id
         } catch (e: Exception) {
             throw Exception("Eşleşme oluşturulurken hata: ${e.message}")
         }
     }
     
-    private fun redirectToChat(request: MatchRequest) {
+    private fun redirectToChat(request: MatchRequest, matchId: String?) {
         try {
             // Diğer kullanıcının bilgilerini al (basit versiyon)
             val otherUser = User(
@@ -282,7 +323,9 @@ class MatchingFragment : Fragment() {
             
             val intent = android.content.Intent(requireContext(), ChatActivity::class.java)
             intent.putExtra("otherUser", otherUser)
-            intent.putExtra("matchId", "") // Boş matchId - ChatFragment'te oluşturulacak
+            if (!matchId.isNullOrEmpty()) {
+                intent.putExtra("matchId", matchId)
+            }
             startActivity(intent)
             
         } catch (e: Exception) {

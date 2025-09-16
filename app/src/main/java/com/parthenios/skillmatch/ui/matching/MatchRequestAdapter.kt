@@ -8,6 +8,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.parthenios.skillmatch.data.MatchRequest
 import com.parthenios.skillmatch.data.MatchRequestStatus
 import com.parthenios.skillmatch.databinding.ItemMatchRequestBinding
+import android.os.CountDownTimer
 
 class MatchRequestAdapter(
     private val onAcceptClick: (MatchRequest) -> Unit,
@@ -83,6 +84,9 @@ class MatchRequestAdapter(
                     }
                 }
                 
+                // Geri sayım şimdilik devre dışı (test amaçlı)
+                binding.tvCountdown.text = ""
+
                 // Buton click listener'ları (sadece alınan isteklerde)
                 if (!isSentRequests) {
                     btnAccept.setOnClickListener {

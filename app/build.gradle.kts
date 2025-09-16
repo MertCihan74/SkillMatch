@@ -53,6 +53,7 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-messaging-ktx")
     
     // Google Sign-In
     implementation("com.google.android.gms:play-services-auth:20.7.0")
@@ -85,4 +86,7 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+
+    // Tink for crypto (AES-GCM, key management helpers)
+    implementation("com.google.crypto.tink:tink-android:1.13.0")
 }

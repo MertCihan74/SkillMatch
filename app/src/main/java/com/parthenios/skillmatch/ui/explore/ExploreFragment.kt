@@ -121,6 +121,14 @@ class ExploreFragment : Fragment() {
     private fun sendMatchRequest(fromUser: User, toUser: User) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                // Yalnızca PENDING durumdaki aynı hedefe gönderilmiş istek var mı? Varsa sessizce çık
+                val existingPending = firestore.collection("matchRequests")
+                    .whereEqualTo("fromUserId", fromUser.uid)
+                    .whereEqualTo("toUserId", toUser.uid)
+                    .whereEqualTo("status", MatchRequestStatus.PENDING.name)
+                    .get().await()
+                if (!existingPending.isEmpty) return@launch
+
                 val matchRequest = MatchRequest(
                     fromUserId = fromUser.uid,
                     toUserId = toUser.uid,
@@ -168,17 +176,43 @@ class ExploreFragment : Fragment() {
                     user.uid != currentUser.uid
                 }
                 
+                // currentUser'ın PENDING gönderdiği isteklerin hedeflerini çek (sadece bekleyenleri gizle)
+                val pendingSent = firestore.collection("matchRequests")
+                    .whereEqualTo("fromUserId", currentUser.uid)
+                    .whereEqualTo("status", MatchRequestStatus.PENDING.name)
+                    .get().await()
+                val hiddenToUserIds = pendingSent.documents.mapNotNull { it.getString("toUserId") }.toSet()
+
+                // currentUser'ın daha önce eşleştiği kullanıcıları çıkar
+                val matches1 = firestore.collection("matches")
+                    .whereEqualTo("user1Id", currentUser.uid)
+                    .get().await()
+                val matches2 = firestore.collection("matches")
+                    .whereEqualTo("user2Id", currentUser.uid)
+                    .get().await()
+                val previouslyMatchedIds = buildSet {
+                    matches1.documents.forEach { doc ->
+                        doc.getString("user2Id")?.let { add(it) }
+                    }
+                    matches2.documents.forEach { doc ->
+                        doc.getString("user1Id")?.let { add(it) }
+                    }
+                }
+
                 withContext(Dispatchers.Main) {
                     allUsers.clear()
                     allUsers.addAll(firebaseUsers)
-                    
-                    // Eşleşme algoritması ile potansiyel eşleşmeleri bul
+
+                    // Eşleşme algoritması ile potansiyel eşleşmeleri bul ve PENDING gönderilmişleri hariç tut
                     val potentialMatches = MatchAlgorithm.findPotentialMatches(currentUser, allUsers)
-                    
+                        .filter { candidate ->
+                            candidate.uid !in hiddenToUserIds && candidate.uid !in previouslyMatchedIds
+                        }
+
                     users.clear()
                     users.addAll(potentialMatches)
                     userAdapter.submitList(users)
-                    
+
                     if (users.isEmpty()) {
                         Toast.makeText(requireContext(), "Henüz eşleşme bulunamadı. Profilinizi güncelleyin!", Toast.LENGTH_LONG).show()
                     }
